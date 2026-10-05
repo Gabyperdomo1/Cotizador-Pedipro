@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizador PediPro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf.js (incluye html2canvas y jsPDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        /* Estilos específicos de la tabla/cuadrícula estilo PediPro */
+        .pedipro-border {
+            border: 2px solid #1e293b;
+        }
+
+        .pedipro-grid {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .pedipro-grid td, .pedipro-grid th {
+            border: 1.5px solid #1e293b;
+            padding: 6px 10px;
+        }
+
+        .pedipro-header-cell {
+            background-color: #ffffff;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* Estilos de input limpios dentro del documento */
+        .doc-input {
+            width: 100%;
+            background: transparent;
+            border: 1px dashed transparent;
+            padding: 2px 6px;
+            font-family: inherit;
+            font-size: inherit;
+            color: #0f172a;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .doc-input:hover {
+            border-color: #cbd5e1;
+            background-color: rgba(241, 245, 249, 0.5);
+        }
+
+        .doc-input:focus {
+            outline: none;
+            border-color: #0091d2;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 2px rgba(0, 145, 210, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Clases para ocultar controles durante la exportación */
+        .exporting .no-export {
+            display: none !important;
+        }
+
+        .exporting .doc-input {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }
+
+        /* Ocultar botones de borrar fila durante exportación */
+        .exporting .delete-btn {
+            display: none !important;
+        }
+
+        /* Sombra limpia del documento A4/Carta */
+        .document-paper {
+            background-color: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="p-3 md:p-8 min-h-screen">
+
+    <!-- Contenedor Principal -->
+    <div class="max-w-4xl mx-auto">
+
+        <!-- Barra de Herramientas Superior / Panel de Control -->
+        <div class="no-export bg-white p-4 rounded-xl shadow-md mb-6 flex flex-wrap items-center justify-between gap-4 border border-slate-200">
+            <div>
+                <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar text-[#0091d2]"></i> Generador de Cotizaciones
+                </h1>
+                <p class="text-xs text-slate-500">Formato Oficial PediPro Guatemala</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="agregarFila()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg text-sm transition flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-plus text-emerald-600"></i> Agregar Fila
+                </button>
+
+                <button onclick="resetearFormulario()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg text-sm transition flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-rotate-left text-amber-600"></i> Limpiar
+                </button>
+
+                <button onclick="descargarPNG()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-file-image"></i> Descargar PNG
+                </button>
+
+                <button onclick="descargarPDF()" class="bg-[#0091d2] hover:bg-[#007ab3] text-white font-medium px-4 py-2 rounded-lg text-sm transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-file-pdf"></i> Descargar PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- DOCUMENTO COTIZACIÓN (HOJA IMPRESA/EXPORTABLE) -->
+        <div id="cotizacion-documento" class="document-paper p-6 md:p-8 rounded-sm bg-white border border-slate-300">
+            
+            <!-- Estructura de Cuadrícula Principal -->
+            <table class="pedipro-grid w-full text-slate-900 text-sm">
+                
+                <!-- FILA 1: LOGO Y COTIZACION NUMERO -->
+                <tr>
+                    <td colspan="3" class="w-2/3 p-3 align-middle">
+                        <!-- LOGOTIPO PEDIPRO FIEL AL PNG ORIGINAL -->
+                        <div class="flex items-center gap-2 relative group">
+                            <!-- Logo en PNG (Base64) idéntico al adjunto -->
+                            <img id="logo-pedipro-img" class="h-14 md:h-16 w-auto object-contain max-w-[280px]" 
+                                 src="data:image/png;base64,iVBORw0KGgoAAAANSU250lFTkSuQmCC" 
+                                 alt="PediPro Logo">
+                            
+                            <!-- Botón para subir logo personalizado local si se desea cambiar -->
+                            <label for="upload-logo" class="no-export absolute -bottom-3 left-0 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer border border-slate-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="fa-solid fa-camera"></i> Cambiar logo
+                            </label>
+                            <input type="file" id="upload-logo" class="hidden" accept="image/*" onchange="cargarLogoCustom(event)">
+                        </div>
+                    </td>
+                    <td class="w-1/6 pedipro-header-cell text-center align-middle bg-slate-50">
+                        COTIZACION NUMERO:
+                    </td>
+                    <td class="w-1/6 text-center align-middle font-bold text-base">
+                        <input type="text" id="cotizacion_no" class="doc-input text-center font-bold text-slate-800" value="PC-02" placeholder="PC-00">
+                    </td>
+                </tr>
+
+                <!-- FILA 2: CLIENTE Y FECHA -->
+                <tr>
+                    <td class="w-1/6 pedipro-header-cell text-left">
+                        CLIENTE
+                    </td>
+                    <td colspan="2" class="w-1/2">
+                        <input type="text" id="cliente_nombre" class="doc-input uppercase" value="MAX THIEMANN" placeholder="NOMBRE DEL CLIENTE">
+                    </td>
+                    <td class="w-1/6 pedipro-header-cell text-center bg-slate-50">
+                        FECHA:
+                    </td>
+                    <td class="w-1/6 text-center">
+                        <input type="text" id="cotizacion_fecha" class="doc-input text-center" value="03/10/2026">
+                    </td>
+                </tr>
+
+                <!-- FILA 3: DIRECCION -->
+                <tr>
+                    <td class="pedipro-header-cell text-left">
+                        DIRECCION
+                    </td>
+                    <td colspan="4">
+                        <input type="text" id="cliente_direccion" class="doc-input text-center" value="Clinica Pradera Concepcion" placeholder="DIRECCIÓN O SUCURSAL">
+                    </td>
+                </tr>
+
+                <!-- FILA 4: VIGENCIA DE COTIZACION -->
+                <tr>
+                    <td class="pedipro-header-cell text-left">
+                        VIGENCIA DE COTIZACION
+                    </td>
+                    <td colspan="4" class="text-center font-medium">
+                        <div class="flex items-center justify-center gap-1">
+                            <span>Esta cotización tendrá vigencia hasta la fecha</span>
+                            <input type="text" id="cotizacion_vigencia" class="doc-input text-center font-semibold w-32" value="31/10/2026">
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- FILA 5: TELEFONO Y RECIBE -->
+                <tr>
+                    <td class="pedipro-header-cell text-left">
+                        TELEFONO
+                    </td>
+                    <td class="w-1/3 text-center">
+                        <input type="text" id="cliente_telefono" class="doc-input text-center" value="54829062" placeholder="TELÉFONO">
+                    </td>
+                    <td class="pedipro-header-cell text-center w-1/6 bg-slate-50">
+                        RECIBE:
+                    </td>
+                    <td colspan="2" class="w-1/3">
+                        <input type="text" id="recibe_nombre" class="doc-input text-center" placeholder="NOMBRE DE QUIEN RECIBE">
+                    </td>
+                </tr>
+            </table>
+
+            <!-- TABLA DE PRODUCTOS / SERVICIOS -->
+            <table class="pedipro-grid w-full text-slate-900 text-sm mt-[-1.5px]">
+                <thead>
+                    <tr class="bg-slate-50">
+                        <th class="w-16 pedipro-header-cell text-center">CANTIDAD</th>
+                        <th class="pedipro-header-cell text-center">DESCRIPCION</th>
+                        <th class="w-32 pedipro-header-cell text-center">unitario Q.</th>
+                        <th class="w-28 pedipro-header-cell text-center">DESCUENTO</th>
+                        <th class="w-40 pedipro-header-cell text-center">TOTAL EN QUETZALES</th>
+                        <th class="w-10 no-export bg-white border-0"></th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-body">
+                    <!-- Las filas se cargarán dinámicamente mediante JS -->
+                </tbody>
+            </table>
+
+            <!-- TOTALES -->
+            <table class="pedipro-grid w-full text-slate-900 text-sm mt-[-1.5px]">
+                <tr>
+                    <td class="border-t-0 border-b-0 border-l-0 border-r border-slate-800" style="border: none;"></td>
+                    <td class="w-40 pedipro-header-cell text-right pr-4 font-bold bg-slate-50 text-base">
+                        GTQ
+                    </td>
+                    <td class="w-40 text-right font-black text-lg px-3 bg-white" id="gran-total">
+                        11,275.00
+                    </td>
+                </tr>
+            </table>
+
+            <!-- PIE DE PAGINA CON CONDICIONES -->
+            <div class="mt-4 border-2 border-slate-900 py-2 px-4 text-center">
+                <p class="font-bold text-slate-900 tracking-wide text-sm md:text-base uppercase">
+                    SE ACEPTAN VISA CUOTAS, TRANSFERENCIAS Y DEPÓSITOS
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Función para cambiar dinámicamente el logo con una imagen subida si se requiere
+        function cargarLogoCustom(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgLogo = document.getElementById('logo-pedipro-img');
+                    imgLogo.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Datos iniciales exactamente como en la imagen de muestra
+        const productosIniciales = [
+            { cantidad: 1, descripcion: "PAQUETE DE 80 SESIONES LÁSER", unitario: 10000.00, descuento: 500.00 },
+            { cantidad: 1, descripcion: "PAQUETE DE 6 QUIROPODIAS", unitario: 1265.00, descuento: 0 },
+            { cantidad: 1, descripcion: "UNGUEASYL", unitario: 315.00, descuento: 0 },
+            { cantidad: 1, descripcion: "FOOTSANITISER", unitario: 195.00, descuento: 0 },
+            { cantidad: "", descripcion: "", unitario: "", descuento: "" } // Fila en blanco como la plantilla
+        ];
+
+        // Función para inicializar los datos en la tabla
+        window.onload = function() {
+            const tablaBody = document.getElementById("tabla-body");
+            tablaBody.innerHTML = "";
+            productosIniciales.forEach(item => {
+                agregarFilaConDatos(item.cantidad, item.descripcion, item.unitario, item.descuento);
+            });
+            calcularTotales();
+        };
+
+        // Función para agregar una fila con datos o vacía
+        function agregarFilaConDatos(cant = 1, desc = "", unit = "", descMon = "") {
+            const tablaBody = document.getElementById("tabla-body");
+            const tr = document.createElement("tr");
+            tr.className = "fila-producto";
+
+            tr.innerHTML = `
+                <td class="text-center p-1">
+                    <input type="number" min="0" class="doc-input text-center cant-input" value="${cant}" oninput="calcularTotales()">
+                </td>
+                <td class="p-1">
+                    <input type="text" class="doc-input uppercase desc-input" value="${desc}" placeholder="DESCRIPCIÓN DEL SERVICIO O PRODUCTO">
+                </td>
+                <td class="text-right p-1">
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-slate-400 text-xs">GTQ</span>
+                        <input type="number" step="0.01" min="0" class="doc-input text-right unit-input" value="${unit}" placeholder="0.00" oninput="calcularTotales()">
+                    </div>
+                </td>
+                <td class="text-right p-1">
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-slate-400 text-xs">$</span>
+                        <input type="number" step="0.01" min="0" class="doc-input text-right desc-mon-input" value="${descMon}" placeholder="0.00" oninput="calcularTotales()">
+                    </div>
+                </td>
+                <td class="text-right p-1 font-semibold">
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-slate-500 text-xs">GTQ</span>
+                        <span class="total-fila">0.00</span>
+                    </div>
+                </td>
+                <td class="text-center no-export border-0 align-middle">
+                    <button onclick="eliminarFila(this)" class="delete-btn text-rose-500 hover:text-rose-700 p-1 rounded transition" title="Eliminar Fila">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                </td>
+            `;
+
+            tablaBody.appendChild(tr);
+            calcularTotales();
+        }
+
+        function agregarFila() {
+            agregarFilaConDatos(1, "", 0, 0);
+        }
+
+        function eliminarFila(btn) {
+            const filas = document.querySelectorAll("#tabla-body tr");
+            if (filas.length > 1) {
+                btn.closest("tr").remove();
+                calcularTotales();
+            } else {
+                alert("La cotización debe tener al menos una fila.");
+            }
+        }
+
+        // Función para calcular importes y Gran Total
+        function calcularTotales() {
+            const filas = document.querySelectorAll("#tabla-body tr");
+            let granTotal = 0;
+
+            filas.forEach(fila => {
+                const cant = parseFloat(fila.querySelector(".cant-input").value) || 0;
+                const unit = parseFloat(fila.querySelector(".unit-input").value) || 0;
+                const desc = parseFloat(fila.querySelector(".desc-mon-input").value) || 0;
+
+                const totalFila = Math.max(0, (cant * unit) - desc);
+                fila.querySelector(".total-fila").textContent = formatearMoneda(totalFila);
+
+                granTotal += totalFila;
+            });
+
+            document.getElementById("gran-total").textContent = formatearMoneda(granTotal);
+        }
+
+        function formatearMoneda(monto) {
+            return monto.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function resetearFormulario() {
+            if (confirm("¿Deseas reiniciar la cotización a los valores por defecto?")) {
+                document.getElementById("cotizacion_no").value = "PC-02";
+                document.getElementById("cliente_nombre").value = "MAX THIEMANN";
+                document.getElementById("cliente_direccion").value = "Clinica Pradera Concepcion";
+                document.getElementById("cotizacion_vigencia").value = "31/10/2026";
+                document.getElementById("cliente_telefono").value = "54829062";
+                document.getElementById("recibe_nombre").value = "";
+                
+                window.onload();
+            }
+        }
+
+        // DESCARGAR COMO PDF
+        function descargarPDF() {
+            const elemento = document.getElementById('cotizacion-documento');
+            document.body.classList.add('exporting');
+
+            const noCotizacion = document.getElementById('cotizacion_no').value || 'Cotizacion';
+            const cliente = document.getElementById('cliente_nombre').value || 'Cliente';
+
+            const opt = {
+                margin:       [10, 10, 10, 10],
+                filename:     `Cotizacion_${noCotizacion}_${cliente.replace(/\s+/g, '_')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(elemento).save().then(() => {
+                document.body.classList.remove('exporting');
+            }).catch(err => {
+                console.error("Error al exportar PDF:", err);
+                document.body.classList.remove('exporting');
+            });
+        }
+
+        // DESCARGAR COMO PNG
+        function descargarPNG() {
+            const elemento = document.getElementById('cotizacion-documento');
+            document.body.classList.add('exporting');
+
+            const noCotizacion = document.getElementById('cotizacion_no').value || 'Cotizacion';
+            const cliente = document.getElementById('cliente_nombre').value || 'Cliente';
+
+            html2canvas(elemento, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: "#ffffff"
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Cotizacion_${noCotizacion}_${cliente.replace(/\s+/g, '_')}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                document.body.classList.remove('exporting');
+            }).catch(err => {
+                console.error("Error al exportar PNG:", err);
+                document.body.classList.remove('exporting');
+            });
+        }
+    </script>
+</body>
+</html>
